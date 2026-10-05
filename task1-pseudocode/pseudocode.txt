@@ -1,0 +1,170 @@
+BEGIN
+    process_another = "YES"
+    WHILE process_another = "YES"
+
+        // Collect user, vehicle and charging information.
+        INPUT user_id
+        INPUT vehicle_number
+        INPUT member_type
+        INPUT charger_type
+        INPUT hours_charged
+
+        // Collect special conditions affecting the bill.
+        INPUT first_time_user
+        INPUT eco_pass_holder
+        INPUT peak_hour_charging
+        INPUT idle_parking
+        INPUT lost_card
+
+        // Validate the member category.
+        WHILE member_type NOT IN ["STAFF", "STUDENT", "OTHER"]
+            DISPLAY "Please enter STAFF, STUDENT or OTHER."
+            INPUT member_type
+        END WHILE
+
+        // Validate the charger type.
+        WHILE charger_type NOT IN ["AC", "DC"]
+            DISPLAY "Please enter AC or DC."
+            INPUT charger_type
+        END WHILE
+
+        // Charging duration must be greater than zero.
+        WHILE hours_charged <= 0
+            DISPLAY "Charging hours must be greater than zero."
+            INPUT hours_charged
+        END WHILE
+
+
+
+        // Set the hourly rates and charging fee cap.
+        IF charger_type = "AC" THEN
+            rate_1 = 4
+            rate_2 = 6
+            rate_3 = 8
+            overtime_rate = 12
+            fee_cap = 80
+        ELSE
+            rate_1 = 10
+            rate_2 = 15
+            rate_3 = 20
+            overtime_rate = 30
+            fee_cap = 150
+        END IF
+
+        // Round any partial charging hour up to a full hour.
+        billable_hours = CEILING(hours_charged)
+
+        // Apply each rate only to the hours within its tier.
+        IF billable_hours <= 2 THEN
+            gross_fee = billable_hours * rate_1
+        ELSE IF billable_hours <= 4 THEN
+            gross_fee = 2 * rate_1
+                        + (billable_hours - 2) * rate_2
+        ELSE IF billable_hours <= 6 THEN
+            gross_fee = 2 * rate_1
+                        + 2 * rate_2
+                        + (billable_hours - 4) * rate_3
+        ELSE
+            gross_fee = 2 * rate_1
+                        + 2 * rate_2
+                        + 2 * rate_3
+                        + (billable_hours - 6) * overtime_rate
+        END IF
+
+        // Cap the total basic charging fee before applying discounts.
+        IF gross_fee > fee_cap THEN
+            gross_fee = fee_cap
+        END IF
+
+
+
+        // Reset and calculate the additional charges for this vehicle.
+        peak_surcharge = 0
+        idle_surcharge = 0
+        card_fee = 0
+
+        // Add RM 5 once per session if charging overlaps 12 PM to 4 PM.
+        IF peak_hour_charging = "YES" THEN
+            peak_surcharge = 5
+        END IF
+
+        // Add the flat fee for occupying the bay after charging is complete.
+        IF idle_parking = "YES" THEN
+            idle_surcharge = 15
+        END IF
+
+        // Add the replacement fee for a lost RFID access card.
+        IF lost_card = "YES" THEN
+            card_fee = 30
+        END IF
+
+        total_surcharges = peak_surcharge
+                           + idle_surcharge
+                           + card_fee
+
+
+
+        // Reset and evaluate waivers and discounts.
+        first_time_waiver = 0
+        member_discount = 0
+        eco_discount = 0
+
+        // Give the first-time waiver priority over the member discount.
+        IF first_time_user = "YES" THEN
+            // Assume the first-time waiver covers charging and all additional fees.
+            first_time_waiver = gross_fee + total_surcharges
+        ELSE
+            // Staff receive a 50% discount on the gross charging fee.
+            IF member_type = "STAFF" THEN
+                member_discount = gross_fee * 0.50
+            // The student discount applies to AC charging only.
+            ELSE IF member_type = "STUDENT"
+                    AND charger_type = "AC" THEN
+                member_discount = gross_fee * 0.25
+            END IF
+        END IF
+
+        subtotal = gross_fee
+                   + total_surcharges
+                   - first_time_waiver
+                   - member_discount
+
+        // Apply the Eco-Pass discount only when a payment remains.
+        IF eco_pass_holder = "YES" AND subtotal > 0 THEN
+            // Limit the discount to the remaining amount payable.
+            IF subtotal >= 2 THEN
+                eco_discount = 2
+            ELSE
+                eco_discount = subtotal
+            END IF
+        END IF
+
+        net_payable = subtotal - eco_discount
+
+
+
+        // Display
+        DISPLAY "EV CHARGING BILL"
+        DISPLAY "User ID: ", user_id
+        DISPLAY "Vehicle Number: ", vehicle_number
+        DISPLAY "Member Type: ", member_type
+        DISPLAY "Charger Type: ", charger_type
+        DISPLAY "Actual Hours: ", hours_charged
+        DISPLAY "Billable Hours: ", billable_hours
+        DISPLAY "Gross Charging Fee: RM ", gross_fee
+        DISPLAY "First-Time Waiver: RM ", first_time_waiver
+        DISPLAY "Member Discount: RM ", member_discount
+        DISPLAY "Eco-Pass Discount: RM ", eco_discount
+        DISPLAY "Peak Surcharge: RM ", peak_surcharge
+        DISPLAY "Idle Parking Surcharge: RM ", idle_surcharge
+        DISPLAY "Card Replacement Fee: RM ", card_fee
+        DISPLAY "Net Payable: RM ", net_payable
+
+
+
+        // Allow the attendant to process another vehicle without restarting.
+        DISPLAY "Process another vehicle? YES / NO"
+        INPUT process_another
+    END WHILE
+    DISPLAY "Program ended."
+END
